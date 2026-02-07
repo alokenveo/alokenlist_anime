@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { searchAnime } from '../../services/anilistService';
+import { searchAnime } from '../../services/tmdbService';
 import { addAnimeToDatabase } from '../../services/animeService';
 
 function SearchBar({ onAnimeAdded }) {

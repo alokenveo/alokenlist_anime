@@ -1,5 +1,5 @@
 import { supabase } from '../lib/supabase';
-import { getAnimeWithSeasons } from './anilistService';
+import { getAnimeWithSeasons } from './tmdbService';
 
 // Función auxiliar para limpiar HTML
 function stripHtml(html) {
@@ -17,7 +17,7 @@ export async function addAnimeToDatabase(animeData) {
     const { data: existing, error: checkError } = await supabase
       .from('animes')
       .select('id')
-      .eq('anilist_id', fullAnimeData.id)
+      .eq('tmdb_id', fullAnimeData.id)
       .maybeSingle(); // Cambiado de .single() a .maybeSingle()
 
     if (checkError && checkError.code !== 'PGRST116') {
@@ -45,7 +45,7 @@ export async function addAnimeToDatabase(animeData) {
     const { data: anime, error: animeError } = await supabase
       .from('animes')
       .insert([{
-        anilist_id: fullAnimeData.id,
+        tmdb_id: fullAnimeData.id,
         title: fullAnimeData.title.romaji || fullAnimeData.title.english,
         title_english: fullAnimeData.title.english,
         title_romaji: fullAnimeData.title.romaji,
