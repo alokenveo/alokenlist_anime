@@ -1,30 +1,10 @@
 import { supabase } from '../lib/supabase';
 import { getAnimeWithSeasons } from './anilistService';
 
-// Función para traducir texto al español
-async function translateToSpanish(text) {
-  if (!text) return '';
-  
-  try {
-    const response = await fetch('https://libretranslate.de/translate', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        q: stripHtml(text),
-        source: 'en',
-        target: 'es',
-        format: 'text'
-      })
-    });
-
-    const data = await response.json();
-    return data.translatedText || stripHtml(text);
-  } catch (error) {
-    console.error('Error translating:', error);
-    return stripHtml(text);
-  }
+// Función auxiliar para limpiar HTML
+function stripHtml(html) {
+  if (!html) return '';
+  return html.replace(/<[^>]*>/g, '');
 }
 
 // Añadir un anime a la base de datos con todas sus temporadas
@@ -32,27 +12,27 @@ export async function addAnimeToDatabase(animeData) {
   try {
     // Obtener el anime completo con todas sus temporadas
     const fullAnimeData = await getAnimeWithSeasons(animeData.id);
-    
+
     // Verificar si ya existe
-    const { data: existing } = await supabase
+    const { data: existing, error: checkError } = await supabase
       .from('animes')
       .select('id')
       .eq('anilist_id', fullAnimeData.id)
-      .single();
+      .maybeSingle(); // Cambiado de .single() a .maybeSingle()
+
+    if (checkError && checkError.code !== 'PGRST116') {
+      throw checkError;
+    }
 
     if (existing) {
       throw new Error('Este anime ya está en tu lista');
     }
 
-    // Traducir descripción
-    const descriptionSpanish = await translateToSpanish(fullAnimeData.description);
-
     // Determinar el estado del anime
     let animeStatus = 'RELEASING';
     if (fullAnimeData.status === 'FINISHED') {
-      // Verificar si hay secuelas pendientes
-      const hasOngoingSequel = fullAnimeData.relations?.edges?.some(edge => 
-        edge.relationType === 'SEQUEL' && 
+      const hasOngoingSequel = fullAnimeData.relations?.edges?.some(edge =>
+        edge.relationType === 'SEQUEL' &&
         edge.node.status !== 'FINISHED'
       );
       animeStatus = hasOngoingSequel ? 'RELEASING' : 'FINISHED';
@@ -61,7 +41,7 @@ export async function addAnimeToDatabase(animeData) {
     // Calcular total de episodios de todas las temporadas
     const totalEpisodes = fullAnimeData.seasons.reduce((sum, s) => sum + (s.episodes || 0), 0);
 
-    // Insertar el anime
+    // Insertar el anime (sin traducción, en inglés)
     const { data: anime, error: animeError } = await supabase
       .from('animes')
       .insert([{
@@ -69,7 +49,7 @@ export async function addAnimeToDatabase(animeData) {
         title: fullAnimeData.title.romaji || fullAnimeData.title.english,
         title_english: fullAnimeData.title.english,
         title_romaji: fullAnimeData.title.romaji,
-        description: descriptionSpanish,
+        description: stripHtml(fullAnimeData.description), // Sin traducir
         cover_image: fullAnimeData.coverImage?.extraLarge || fullAnimeData.coverImage?.large,
         banner_image: fullAnimeData.bannerImage,
         genres: fullAnimeData.genres,
@@ -179,10 +159,4 @@ export async function getAnimeWithDetails(animeId) {
     console.error('Error fetching anime details:', error);
     throw error;
   }
-}
-
-// Función auxiliar para limpiar HTML
-function stripHtml(html) {
-  if (!html) return '';
-  return html.replace(/<[^>]*>/g, '');
 }

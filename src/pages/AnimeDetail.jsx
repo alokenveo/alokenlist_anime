@@ -37,7 +37,22 @@ function AnimeDetail() {
 
     function handleEpisodeUpdate() {
         setSelectedEpisode(null)
-        fetchAnimeDetail() // Refrescar datos
+        fetchAnimeDetail()
+    }
+
+    async function toggleFavorite() {
+        try {
+            const { error } = await supabase
+                .from('animes')
+                .update({ favorite: !anime.favorite })
+                .eq('id', anime.id)
+
+            if (error) throw error
+
+            setAnime({ ...anime, favorite: !anime.favorite })
+        } catch (error) {
+            console.error('Error toggling favorite:', error)
+        }
     }
 
     if (loading) {
@@ -89,7 +104,15 @@ function AnimeDetail() {
 
                 {/* Info */}
                 <div className="flex-1">
-                    <h1 className="text-4xl font-bold mb-2">{anime.title}</h1>
+                    <div className="flex items-center gap-4 mb-2">
+                        <h1 className="text-4xl font-bold">{anime.title}</h1>
+                        <button
+                            onClick={toggleFavorite}
+                            className="text-3xl transition-transform hover:scale-110"
+                        >
+                            {anime.favorite ? '❤️' : '🤍'}
+                        </button>
+                    </div>
                     {anime.title_english && (
                         <p className="text-xl text-gray-400 mb-4">{anime.title_english}</p>
                     )}
