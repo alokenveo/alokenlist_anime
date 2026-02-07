@@ -1,6 +1,7 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { useAuth } from '../contexts/AuthContext'
 import SeasonAccordion from '../components/anime/SeasonAccordion'
 import EpisodeModal from '../components/anime/EpisodeModal'
 import { getAnimeWithDetails } from '../services/animeService'
@@ -11,7 +12,7 @@ function AnimeDetail() {
     const [anime, setAnime] = useState(null)
     const [loading, setLoading] = useState(true)
     const [selectedEpisode, setSelectedEpisode] = useState(null)
-
+    const { isAdmin } = useAuth()
     useEffect(() => {
         fetchAnimeDetail()
     }, [id])
@@ -40,18 +41,41 @@ function AnimeDetail() {
         fetchAnimeDetail()
     }
 
-    async function toggleFavorite() {
+    async function togglePreference(preferenceType) {
         try {
+            // Determinar el nuevo estado
+            let updates = {}
+
+            if (preferenceType === 'favorite') {
+                updates = {
+                    favorite: !anime.favorite,
+                    disliked: false,
+                    planned: false
+                }
+            } else if (preferenceType === 'disliked') {
+                updates = {
+                    favorite: false,
+                    disliked: !anime.disliked,
+                    planned: false
+                }
+            } else if (preferenceType === 'planned') {
+                updates = {
+                    favorite: false,
+                    disliked: false,
+                    planned: !anime.planned
+                }
+            }
+
             const { error } = await supabase
                 .from('animes')
-                .update({ favorite: !anime.favorite })
+                .update(updates)
                 .eq('id', anime.id)
 
             if (error) throw error
 
-            setAnime({ ...anime, favorite: !anime.favorite })
+            setAnime({ ...anime, ...updates })
         } catch (error) {
-            console.error('Error toggling favorite:', error)
+            console.error('Error toggling preference:', error)
         }
     }
 
@@ -104,19 +128,71 @@ function AnimeDetail() {
 
                 {/* Info */}
                 <div className="flex-1">
-                    {/* Título y favorito */}
-                    <div className="flex items-start gap-3 mb-2">
-                        <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold flex-1">{anime.title}</h1>
-                        <button
-                            onClick={toggleFavorite}
-                            className="text-2xl sm:text-3xl transition-transform hover:scale-110 flex-shrink-0"
-                        >
-                            {anime.favorite ? '❤️' : '🤍'}
-                        </button>
-                    </div>
+                    {/* Título */}
+                    <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-2">{anime.title}</h1>
 
                     {anime.title_english && anime.title_english !== anime.title && (
                         <p className="text-lg sm:text-xl text-gray-400 mb-4">{anime.title_english}</p>
+                    )}
+
+
+                    {/* Botones de preferencia - SOLO ADMIN */}
+                    {isAdmin && (
+                        <div className="flex flex-wrap gap-3 mb-6">
+                            <button
+                                onClick={() => togglePreference('favorite')}
+                                className={`px-4 py-2 rounded-lg transition-all flex items-center gap-2 ${anime.favorite
+                                        ? 'bg-red-600 text-white ring-2 ring-red-400 scale-105'
+                                        : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                                    }`}
+                            >
+                                <span className="text-xl">{anime.favorite ? '❤️' : '🤍'}</span>
+                                <span className="text-sm sm:text-base">Me gusta</span>
+                            </button>
+
+                            <button
+                                onClick={() => togglePreference('planned')}
+                                className={`px-4 py-2 rounded-lg transition-all flex items-center gap-2 ${anime.planned
+                                        ? 'bg-purple-600 text-white ring-2 ring-purple-400 scale-105'
+                                        : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                                    }`}
+                            >
+                                <span className="text-xl">📌</span>
+                                <span className="text-sm sm:text-base">Planificado</span>
+                            </button>
+
+                            <button
+                                onClick={() => togglePreference('disliked')}
+                                className={`px-4 py-2 rounded-lg transition-all flex items-center gap-2 ${anime.disliked
+                                        ? 'bg-gray-900 text-white ring-2 ring-gray-600 scale-105'
+                                        : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                                    }`}
+                            >
+                                <span className="text-xl">💔</span>
+                                <span className="text-sm sm:text-base">No me gusta</span>
+                            </button>
+                        </div>
+                    )}
+
+                    {/* Mostrar estado de preferencia si NO es admin */}
+                    {!isAdmin && (anime.favorite || anime.planned || anime.disliked) && (
+                        <div className="mb-6 flex gap-2">
+                            {anime.favorite && (
+                                <span className="px-4 py-2 bg-red-600/20 text-red-400 rounded-lg flex items-center gap-2">
+                                    ❤️ Favorito
+                                </span>
+                            )}
+                            {anime.planned && (
+                                <span className="px-4 py-2 bg-purple-600/20 text-purple-400 rounded-lg flex items-center gap-2">
+                                    📌 Planificado
+                                </span>
+                            )}
+                            {anime.disliked && (
+                                <span className="px-4 py-2 bg-gray-700 text-gray-400 rounded-lg flex items-center gap-2">
+                                    💔 Descartado
+                                </span>
+                            )}
+                        </div>
                     )}
 
                     {/* Badges */}
@@ -199,4 +275,4 @@ function AnimeDetail() {
     )
 }
 
-export default AnimeDetail;
+export default AnimeDetail

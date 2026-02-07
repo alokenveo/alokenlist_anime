@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { searchAnime } from '../../services/tmdbService';
 import { addAnimeToDatabase } from '../../services/animeService';
+import { useAuth } from '../../contexts/AuthContext';
 
 function SearchBar({ onAnimeAdded }) {
   const [query, setQuery] = useState('');
@@ -9,6 +10,10 @@ function SearchBar({ onAnimeAdded }) {
   const [showResults, setShowResults] = useState(false);
   const [addingId, setAddingId] = useState(null);
   const searchRef = useRef(null);
+  const { isAdmin } = useAuth();
+
+  // Si no es admin, no mostrar nada
+  if (!isAdmin) return null;
 
   // Cerrar resultados al hacer click fuera
   useEffect(() => {
@@ -35,7 +40,7 @@ function SearchBar({ onAnimeAdded }) {
         } finally {
           setLoading(false);
         }
-      }, 300); // Debounce de 300ms
+      }, 300);
 
       return () => clearTimeout(timeoutId);
     } else {

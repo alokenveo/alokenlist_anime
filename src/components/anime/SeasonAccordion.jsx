@@ -1,9 +1,11 @@
 import { useState } from 'react'
 import { supabase } from '../../lib/supabase'
+import { useAuth } from '../../contexts/AuthContext'
 
 export default function SeasonAccordion({ season, onEpisodeClick, onSeasonUpdate }) {
   const [isOpen, setIsOpen] = useState(false)
   const [marking, setMarking] = useState(false)
+  const { isAdmin } = useAuth()
 
   const progress = season.total_episodes > 0
     ? Math.round((season.episodes_watched / season.total_episodes) * 100)
@@ -69,7 +71,7 @@ export default function SeasonAccordion({ season, onEpisodeClick, onSeasonUpdate
             </div>
 
             {/* Botón marcar todos */}
-            {!allWatched && (
+            {!allWatched && isAdmin && (
               <button
                 onClick={(e) => {
                   e.stopPropagation()
@@ -92,7 +94,7 @@ export default function SeasonAccordion({ season, onEpisodeClick, onSeasonUpdate
             {season.episodes?.map((episode) => (
               <button
                 key={episode.id}
-                onClick={() => onEpisodeClick(episode)}
+                onClick={() => isAdmin && onEpisodeClick(episode)}
                 className={`px-3 sm:px-4 py-2 sm:py-3 rounded-lg text-left transition text-sm sm:text-base ${episode.watched
                   ? 'bg-cyan-600 hover:bg-cyan-700 text-white'
                   : 'bg-gray-700 hover:bg-gray-600 text-gray-300'

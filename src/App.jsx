@@ -1,4 +1,5 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
+import { AuthProvider } from './contexts/AuthContext'
 import Layout from './components/layout/Layout'
 import Dashboard from './pages/Dashboard'
 import AnimeDetail from './pages/AnimeDetail'
@@ -14,16 +15,18 @@ function App() {
   }
 
   return (
-    <Router>
-      <Layout onAnimeAdded={handleAnimeAdded}>
-        <Routes>
-          <Route path="/" element={<Dashboard refreshTrigger={refreshTrigger} />} />
-          <Route path="/mis-animes" element={<MisAnimes />} />
-          <Route path="/sobre-mi" element={<SobreMi />} />
-          <Route path="/anime/:id" element={<AnimeDetail />} />
-        </Routes>
-      </Layout>
-    </Router>
+    <AuthProvider>
+      <Router>
+        <Layout onAnimeAdded={handleAnimeAdded}>
+          <Routes>
+            <Route path="/" element={<Dashboard refreshTrigger={refreshTrigger} />} />
+            <Route path="/mis-animes" element={<MisAnimes />} />
+            <Route path="/sobre-mi" element={<SobreMi />} />
+            <Route path="/anime/:id" element={<AnimeDetail />} />
+          </Routes>
+        </Layout>
+      </Router>
+    </AuthProvider>
   )
 }
 

@@ -2,18 +2,21 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getAllAnimes } from '../services/animeService'
 import jsPDF from 'jspdf'
+import { useAuth } from '../contexts/AuthContext'
 import autoTable from 'jspdf-autotable'
 
 export default function MisAnimes() {
     const [animes, setAnimes] = useState([])
     const [loading, setLoading] = useState(true)
     const navigate = useNavigate()
+    const { isAdmin } = useAuth()
 
     // Estados de filtros
+    const [searchQuery, setSearchQuery] = useState('')
     const [filters, setFilters] = useState({
         status: [], // COMPLETED, WATCHING, PLAN_TO_WATCH
         genres: [],
-        favorite: null // null, true, false
+        preference: null // null, 'favorite', 'planned', 'disliked'
     })
 
     // Estado de ordenación
@@ -58,15 +61,27 @@ export default function MisAnimes() {
         })
     }
 
-    function toggleFavoriteFilter() {
+    function setPreferenceFilter(value) {
         setFilters(prev => ({
             ...prev,
-            favorite: prev.favorite === null ? true : prev.favorite === true ? false : null
+            preference: prev.preference === value ? null : value
         }))
     }
 
     // Aplicar filtros
     const filteredAnimes = animes.filter(anime => {
+        // Filtro por búsqueda de texto
+        if (searchQuery.trim()) {
+            const query = searchQuery.toLowerCase()
+            const titleMatch = anime.title?.toLowerCase().includes(query)
+            const englishMatch = anime.title_english?.toLowerCase().includes(query)
+            const romajiMatch = anime.title_romaji?.toLowerCase().includes(query)
+
+            if (!titleMatch && !englishMatch && !romajiMatch) {
+                return false
+            }
+        }
+
         // Filtro por estado
         if (filters.status.length > 0 && !filters.status.includes(anime.user_status)) {
             return false
@@ -78,10 +93,10 @@ export default function MisAnimes() {
             if (!hasGenre) return false
         }
 
-        // Filtro por favorito
-        if (filters.favorite !== null && anime.favorite !== filters.favorite) {
-            return false
-        }
+        // Filtro por preferencia
+        if (filters.preference === 'favorite' && !anime.favorite) return false
+        if (filters.preference === 'planned' && !anime.planned) return false
+        if (filters.preference === 'disliked' && !anime.disliked) return false
 
         return true
     })
@@ -132,18 +147,23 @@ export default function MisAnimes() {
             `${anime.progress_percentage}%`,
             anime.episodes || 'N/A',
             anime.user_score ? `${anime.user_score}★` : '-',
-            anime.favorite ? '❤' : ''
+            anime.favorite ? '❤' : anime.planned ? '📌' : anime.disliked ? '💔' : ''
         ])
 
         autoTable(doc, {
             startY: 40,
-            head: [['Título', 'Estado', 'Progreso', 'Episodios', 'Puntuación', 'Fav']],
+            head: [['Título', 'Estado', 'Progreso', 'Episodios', 'Puntuación', 'Pref']],
             body: tableData,
             styles: { fontSize: 8 },
             headStyles: { fillColor: [6, 182, 212] }
         })
 
         doc.save(`Mis-animes-${new Date().toISOString().split('T')[0]}.pdf`)
+    }
+
+    function clearAllFilters() {
+        setSearchQuery('')
+        setFilters({ status: [], genres: [], preference: null })
     }
 
     if (loading) {
@@ -153,14 +173,27 @@ export default function MisAnimes() {
     return (
         <div>
             {/* Header con título y botón exportar */}
-            <div className="flex justify-between items-center mb-6">
-                <h1 className="text-4xl font-bold text-white">Mis Animes</h1>
-                <button
-                    onClick={exportToPDF}
-                    className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition flex items-center gap-2"
-                >
-                    📄 Exportar PDF
-                </button>
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+                <h1 className="text-3xl sm:text-4xl font-bold text-white">Mis Animes</h1>
+                {isAdmin && (
+                    <button
+                        onClick={exportToPDF}
+                        className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition flex items-center gap-2 whitespace-nowrap"
+                    >
+                        📄 Exportar PDF
+                    </button>
+                )}
+            </div>
+
+            {/* Barra de búsqueda destacada */}
+            <div className="mb-6">
+                <input
+                    type="text"
+                    placeholder="🔍 Buscar por título..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full px-4 py-3 bg-gray-800 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-400 text-lg"
+                />
             </div>
 
             {/* Filtros y Ordenación */}
@@ -191,7 +224,7 @@ export default function MisAnimes() {
                     {/* Filtro: Géneros */}
                     <div className="flex-1 min-w-[200px]">
                         <label className="block text-sm font-semibold text-gray-400 mb-2">Géneros</label>
-                        <div className="flex flex-wrap gap-2">
+                        <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto">
                             {availableGenres.map(genre => (
                                 <button
                                     key={genre}
@@ -207,30 +240,48 @@ export default function MisAnimes() {
                         </div>
                     </div>
 
-                    {/* Filtro: Favoritos */}
-                    <div className="flex-shrink-0 w-48">
-                        <label className="block text-sm font-semibold text-gray-400 mb-2">Favoritos</label>
-                        <button
-                            onClick={toggleFavoriteFilter}
-                            className={`w-full px-4 py-2 rounded-lg transition ${filters.favorite === true ? 'bg-red-600 text-white' :
-                                filters.favorite === false ? 'bg-gray-600 text-white' :
-                                    'bg-gray-700 text-gray-300'
-                                }`}
-                        >
-                            {filters.favorite === true ? '❤️ Solo favoritos' :
-                                filters.favorite === false ? '🤍 Sin favoritos' :
-                                    '⚪ Todos'}
-                        </button>
+                    {/* Filtro: Preferencias */}
+                    <div className="flex-shrink-0 w-full sm:w-auto">
+                        <label className="block text-sm font-semibold text-gray-400 mb-2">Preferencias</label>
+                        <div className="flex flex-wrap gap-2">
+                            <button
+                                onClick={() => setPreferenceFilter('favorite')}
+                                className={`px-4 py-2 rounded-lg transition flex items-center gap-2 ${filters.preference === 'favorite'
+                                    ? 'bg-red-600 text-white ring-2 ring-red-400'
+                                    : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                                    }`}
+                            >
+                                ❤️ Favoritos
+                            </button>
+                            <button
+                                onClick={() => setPreferenceFilter('planned')}
+                                className={`px-4 py-2 rounded-lg transition flex items-center gap-2 ${filters.preference === 'planned'
+                                    ? 'bg-purple-600 text-white ring-2 ring-purple-400'
+                                    : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                                    }`}
+                            >
+                                📌 Planificados
+                            </button>
+                            <button
+                                onClick={() => setPreferenceFilter('disliked')}
+                                className={`px-4 py-2 rounded-lg transition flex items-center gap-2 ${filters.preference === 'disliked'
+                                    ? 'bg-gray-900 text-white ring-2 ring-gray-600'
+                                    : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                                    }`}
+                            >
+                                💔 Descartados
+                            </button>
+                        </div>
                     </div>
                 </div>
 
                 {/* Ordenación */}
-                <div className="flex items-center gap-4 pt-4 border-t border-gray-700">
-                    <label className="text-sm font-semibold text-gray-400">Ordenar por:</label>
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 pt-4 border-t border-gray-700">
+                    <label className="text-sm font-semibold text-gray-400 whitespace-nowrap">Ordenar por:</label>
                     <select
                         value={sortBy}
                         onChange={(e) => setSortBy(e.target.value)}
-                        className="px-4 py-2 bg-gray-700 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-400"
+                        className="flex-1 w-full sm:w-auto px-4 py-2 bg-gray-700 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-400"
                     >
                         <option value="alphabetical">Alfabético (A-Z)</option>
                         <option value="alphabetical-desc">Alfabético (Z-A)</option>
@@ -244,42 +295,70 @@ export default function MisAnimes() {
                         <option value="oldest">Añadidos antiguos</option>
                     </select>
 
-                    <span className="text-gray-400 text-sm ml-auto">
-                        Mostrando {sortedAnimes.length} de {animes.length} animes
-                    </span>
+                    <div className="flex items-center gap-3 ml-auto">
+                        <span className="text-gray-400 text-sm whitespace-nowrap">
+                            {sortedAnimes.length} de {animes.length}
+                        </span>
+                        {(searchQuery || filters.status.length > 0 || filters.genres.length > 0 || filters.preference) && (
+                            <button
+                                onClick={clearAllFilters}
+                                className="px-3 py-1 bg-gray-700 hover:bg-gray-600 text-white text-sm rounded transition"
+                            >
+                                Limpiar filtros
+                            </button>
+                        )}
+                    </div>
                 </div>
             </div>
 
             {/* Grid de animes */}
             {sortedAnimes.length === 0 ? (
                 <div className="text-center mt-20">
-                    <p className="text-gray-400 text-lg">No hay animes que coincidan con los filtros</p>
-                    <button
-                        onClick={() => setFilters({ status: [], genres: [], favorite: null })}
-                        className="mt-4 px-4 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg transition"
-                    >
-                        Limpiar filtros
-                    </button>
+                    <p className="text-gray-400 text-lg">
+                        {searchQuery || filters.status.length > 0 || filters.genres.length > 0 || filters.preference
+                            ? 'No hay animes que coincidan con los filtros'
+                            : 'No tienes animes registrados aún'}
+                    </p>
+                    {(searchQuery || filters.status.length > 0 || filters.genres.length > 0 || filters.preference) && (
+                        <button
+                            onClick={clearAllFilters}
+                            className="mt-4 px-4 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg transition"
+                        >
+                            Limpiar filtros
+                        </button>
+                    )}
                 </div>
             ) : (
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 sm:gap-6">
                     {sortedAnimes.map(anime => (
                         <div
                             key={anime.id}
                             onClick={() => navigate(`/anime/${anime.id}`)}
-                            className="bg-gray-800 rounded-lg overflow-hidden hover:ring-2 hover:ring-cyan-400 transition cursor-pointer relative"
+                            className="bg-gray-800 rounded-lg overflow-hidden hover:ring-2 hover:ring-cyan-400 transition cursor-pointer relative group"
                         >
-                            {anime.favorite && (
-                                <div className="absolute top-2 right-2 text-2xl z-10">❤️</div>
-                            )}
+                            {/* Badge de preferencia */}
+                            <div className="absolute top-2 right-2 flex gap-1 z-10">
+                                {anime.favorite && (
+                                    <span className="text-2xl drop-shadow-lg">❤️</span>
+                                )}
+                                {anime.planned && (
+                                    <span className="text-2xl drop-shadow-lg">📌</span>
+                                )}
+                                {anime.disliked && (
+                                    <span className="text-2xl drop-shadow-lg">💔</span>
+                                )}
+                            </div>
+
                             <img
                                 src={anime.cover_image || 'https://via.placeholder.com/230x345'}
                                 alt={anime.title}
-                                className="w-full h-72 object-cover"
+                                className="w-full h-64 sm:h-72 object-cover"
                             />
-                            <div className="p-4">
-                                <h3 className="text-white font-semibold truncate mb-2">{anime.title}</h3>
-                                <div className="flex items-center justify-between text-sm mb-2">
+                            <div className="p-3 sm:p-4">
+                                <h3 className="text-white font-semibold truncate mb-2 text-sm sm:text-base">
+                                    {anime.title}
+                                </h3>
+                                <div className="flex items-center justify-between text-xs sm:text-sm mb-2">
                                     <span className="text-yellow-400">
                                         {anime.user_score ? '★'.repeat(Math.round(anime.user_score)) : '☆☆☆☆☆'}
                                     </span>
