@@ -21,7 +21,7 @@ export default function EpisodeModal({ episode, onClose, onUpdate }) {
         .eq('id', episode.id)
 
       if (error) throw error
-      
+
       onUpdate()
       onClose()
     } catch (error) {
@@ -33,8 +33,8 @@ export default function EpisodeModal({ episode, onClose, onUpdate }) {
   }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50" onClick={onClose}>
-      <div className="bg-gray-800 rounded-lg p-6 max-w-2xl w-full mx-4" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div className="bg-gray-800 rounded-lg p-4 sm:p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div className="flex justify-between items-start mb-4">
           <div>
@@ -45,7 +45,7 @@ export default function EpisodeModal({ episode, onClose, onUpdate }) {
               <p className="text-gray-400 mt-1">{episode.title}</p>
             )}
           </div>
-          <button 
+          <button
             onClick={onClose}
             className="text-gray-400 hover:text-white text-2xl"
           >
