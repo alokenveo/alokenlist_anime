@@ -60,7 +60,7 @@ function SearchBar({ onAnimeAdded }) {
   }
 
   return (
-    <div ref={searchRef} className="relative w-96">
+    <div ref={searchRef} className="relative w-full md:w-96">
       <input
         type="text"
         placeholder="Buscar anime..."

@@ -31,7 +31,7 @@ export async function searchAnime(query) {
         return {
           id: show.id,
           title: {
-            romaji: show.original_name,
+            romaji: show.name,
             english: show.name,
             native: show.original_name
           },
@@ -87,7 +87,7 @@ export async function getAnimeWithSeasons(id) {
     return {
       id: data.id,
       title: {
-        romaji: data.original_name,
+        romaji: data.name,
         english: data.name,
         native: data.original_name
       },
