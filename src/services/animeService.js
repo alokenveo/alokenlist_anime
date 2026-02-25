@@ -127,6 +127,115 @@ export async function getAllAnimes() {
   }
 }
 
+// Mapeo de sortBy a columna y dirección de Supabase
+function buildOrderParams(sortBy) {
+  switch (sortBy) {
+    case 'alphabetical': return { column: 'title', ascending: true };
+    case 'alphabetical-desc': return { column: 'title', ascending: false };
+    case 'progress-desc': return { column: 'progress_percentage', ascending: false };
+    case 'progress-asc': return { column: 'progress_percentage', ascending: true };
+    case 'episodes-desc': return { column: 'episodes', ascending: false };
+    case 'episodes-asc': return { column: 'episodes', ascending: true };
+    case 'score-desc': return { column: 'user_score', ascending: false };
+    case 'score-asc': return { column: 'user_score', ascending: true };
+    case 'recent': return { column: 'date_added', ascending: false };
+    case 'oldest': return { column: 'date_added', ascending: true };
+    default: return { column: 'date_added', ascending: false };
+  }
+}
+
+// Aplicar filtros comunes a una query de Supabase
+function applyFilters(query, { searchQuery, filters }) {
+  // Búsqueda por texto (OR entre los tres campos de título)
+  if (searchQuery && searchQuery.trim()) {
+    const q = `%${searchQuery.trim()}%`;
+    query = query.or(
+      `title.ilike.${q},title_english.ilike.${q},title_romaji.ilike.${q}`
+    );
+  }
+
+  // Filtro por estado
+  if (filters.status && filters.status.length > 0) {
+    query = query.in('user_status', filters.status);
+  }
+
+  // Filtro por géneros (el anime debe contener AL MENOS uno de los géneros)
+  if (filters.genres && filters.genres.length > 0) {
+    query = query.overlaps('genres', filters.genres);
+  }
+
+  // Filtro por preferencia
+  if (filters.preference === 'favorite') query = query.eq('favorite', true);
+  if (filters.preference === 'planned') query = query.eq('planned', true);
+  if (filters.preference === 'disliked') query = query.eq('disliked', true);
+
+  return query;
+}
+
+// Obtener animes paginados con filtros y ordenación en el servidor
+export async function getAnimesPaginated({ page = 1, pageSize = 24, searchQuery = '', filters = {}, sortBy = 'alphabetical' }) {
+  try {
+    const { column, ascending } = buildOrderParams(sortBy);
+    const from = (page - 1) * pageSize;
+    const to = from + pageSize - 1;
+
+    let query = supabase
+      .from('animes')
+      .select('*', { count: 'exact' })
+      .order(column, { ascending, nullsFirst: false })
+      .range(from, to);
+
+    query = applyFilters(query, { searchQuery, filters });
+
+    const { data, error, count } = await query;
+    if (error) throw error;
+
+    return { data, count };
+  } catch (error) {
+    console.error('Error fetching paginated animes:', error);
+    throw error;
+  }
+}
+
+// Obtener TODOS los animes filtrados (sin paginación, para exportar PDF)
+export async function getAllAnimesFiltered({ searchQuery = '', filters = {}, sortBy = 'alphabetical' }) {
+  try {
+    const { column, ascending } = buildOrderParams(sortBy);
+
+    let query = supabase
+      .from('animes')
+      .select('*')
+      .order(column, { ascending, nullsFirst: false });
+
+    query = applyFilters(query, { searchQuery, filters });
+
+    const { data, error } = await query;
+    if (error) throw error;
+    return data;
+  } catch (error) {
+    console.error('Error fetching filtered animes:', error);
+    throw error;
+  }
+}
+
+// Obtener géneros únicos disponibles (trae solo la columna genres)
+export async function getAvailableGenres() {
+  try {
+    const { data, error } = await supabase
+      .from('animes')
+      .select('genres');
+
+    if (error) throw error;
+
+    const genresSet = new Set();
+    data.forEach(row => row.genres?.forEach(g => genresSet.add(g)));
+    return Array.from(genresSet).sort();
+  } catch (error) {
+    console.error('Error fetching genres:', error);
+    return [];
+  }
+}
+
 // Obtener anime con sus temporadas y episodios
 export async function getAnimeWithDetails(animeId) {
   try {
